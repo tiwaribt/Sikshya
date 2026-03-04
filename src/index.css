@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+}
+
+@layer base {
+  body {
+    @apply antialiased selection:bg-indigo-100 selection:text-indigo-900;
+  }
+}
+
+.markdown-body h1 { @apply text-3xl font-bold mb-6 text-indigo-900; }
+.markdown-body h2 { @apply text-2xl font-bold mt-8 mb-4 text-indigo-800; }
+.markdown-body h3 { @apply text-xl font-bold mt-6 mb-3 text-indigo-700; }
+.markdown-body p { @apply text-gray-600 leading-relaxed mb-4; }
+.markdown-body ul { @apply list-disc pl-6 mb-4 space-y-2 text-gray-600; }
+.markdown-body ol { @apply list-decimal pl-6 mb-4 space-y-2 text-gray-600; }
+.markdown-body blockquote { @apply border-l-4 border-indigo-200 pl-4 italic text-gray-500 my-6; }
+.markdown-body code { @apply bg-gray-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-sm; }
+.markdown-body pre { @apply bg-gray-900 text-gray-100 p-6 rounded-2xl overflow-x-auto my-6 font-mono text-sm; }
+
