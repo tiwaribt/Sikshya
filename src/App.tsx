@@ -19,6 +19,8 @@ import {
   LayoutDashboard,
   Search,
   Menu,
+  Edit,
+  Trash2,
   X
 } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -37,6 +39,7 @@ const MOCK_USER: User = {
 export default function App() {
   const [lang, setLang] = useState<'en' | 'ne'>('en');
   const [view, setView] = useState<'dashboard' | 'course' | 'lesson' | 'certificates' | 'admin'>('dashboard');
+  const [isAdminMode, setIsAdminMode] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -53,6 +56,9 @@ export default function App() {
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [editLesson, setEditLesson] = useState<Partial<Lesson>>({});
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminFilter, setAdminFilter] = useState<'all' | 'curriculum' | 'ai' | 'robotics' | 'cybersecurity'>('all');
+  const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([]);
 
   useEffect(() => {
     fetchCourses();
@@ -113,6 +119,19 @@ export default function App() {
   const handleDeleteCourse = async (id: number) => {
     if (!confirm('Are you sure you want to delete this course?')) return;
     await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+    fetchCourses();
+    fetchAdminData();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedCourseIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedCourseIds.length} courses?`)) return;
+    
+    await Promise.all(selectedCourseIds.map(id => 
+      fetch(`/api/admin/courses/${id}`, { method: 'DELETE' })
+    ));
+    
+    setSelectedCourseIds([]);
     fetchCourses();
     fetchAdminData();
   };
@@ -197,7 +216,7 @@ export default function App() {
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('dashboard')}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setIsAdminMode(false); setView('dashboard'); }}>
               <div className="bg-indigo-600 p-2 rounded-lg">
                 <GraduationCap className="text-white w-6 h-6" />
               </div>
@@ -219,7 +238,7 @@ export default function App() {
                 {t('Certificates', 'प्रमाणपत्रहरू')}
               </button>
               <button 
-                onClick={() => setView('admin')}
+                onClick={() => { setIsAdminMode(true); setView('admin'); }}
                 className={cn("text-sm font-medium transition-colors", view === 'admin' ? "text-indigo-600" : "text-gray-500 hover:text-indigo-600")}
               >
                 {t('Admin', 'प्रशासक')}
@@ -407,7 +426,7 @@ export default function App() {
                 <div className="p-8 md:p-12 bg-gray-50/50">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold">{t('Course Content', 'पाठ्यक्रम सामग्री')}</h2>
-                    {view === 'admin' && (
+                    {isAdminMode && (
                       <button 
                         onClick={() => { setEditLesson({ course_id: selectedCourse.id, order_index: (selectedCourse as any).lessons?.length + 1 }); setIsEditingLesson(true); }}
                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors"
@@ -437,7 +456,7 @@ export default function App() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          {view === 'admin' && (
+                          {isAdminMode && (
                             <div className="flex gap-2">
                               <button onClick={() => { setEditLesson(lesson); setIsEditingLesson(true); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">Edit</button>
                               <button onClick={() => handleDeleteLesson(lesson.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">Delete</button>
@@ -621,41 +640,112 @@ export default function App() {
 
               {adminTab === 'courses' && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h2 className="text-xl font-bold">{t('Manage Courses', 'पाठ्यक्रमहरू व्यवस्थापन गर्नुहोस्')}</h2>
-                    <button 
-                      onClick={() => { setEditCourse({ category: 'curriculum', grade: 1 }); setIsEditingCourse(true); }}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCourseIds.length > 0 && (
+                        <button 
+                          onClick={handleBulkDelete}
+                          className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-sm font-bold hover:bg-red-200 transition-colors"
+                        >
+                          Delete Selected ({selectedCourseIds.length})
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => { setEditCourse({ category: 'curriculum', grade: 1 }); setIsEditingCourse(true); }}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+                      >
+                        + {t('Add New Course', 'नयाँ पाठ्यक्रम थप्नुहोस्')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text"
+                        placeholder="Search courses..."
+                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-100 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        value={adminSearch}
+                        onChange={e => setAdminSearch(e.target.value)}
+                      />
+                    </div>
+                    <select 
+                      className="px-4 py-2 rounded-xl border border-gray-100 outline-none text-sm"
+                      value={adminFilter}
+                      onChange={e => setAdminFilter(e.target.value as any)}
                     >
-                      + {t('Add New Course', 'नयाँ पाठ्यक्रम थप्नुहोस्')}
-                    </button>
+                      <option value="all">All Categories</option>
+                      <option value="curriculum">Curriculum</option>
+                      <option value="ai">AI</option>
+                      <option value="robotics">Robotics</option>
+                      <option value="cybersecurity">Cyber Security</option>
+                    </select>
                   </div>
 
                   <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
                     <table className="w-full text-left">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
+                          <th className="px-6 py-4 w-10">
+                            <input 
+                              type="checkbox" 
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedCourseIds(courses.map(c => c.id));
+                                } else {
+                                  setSelectedCourseIds([]);
+                                }
+                              }}
+                              checked={selectedCourseIds.length === courses.length && courses.length > 0}
+                            />
+                          </th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Course</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Category</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Grade</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {courses.map((course) => (
-                          <tr key={course.id} className="hover:bg-gray-50/50 transition-colors">
+                        {courses
+                          .filter(c => (adminFilter === 'all' || c.category === adminFilter))
+                          .filter(c => c.title_en.toLowerCase().includes(adminSearch.toLowerCase()) || c.title_ne.includes(adminSearch))
+                          .map((course) => (
+                          <tr key={course.id} className={cn("hover:bg-gray-50/50 transition-colors", selectedCourseIds.includes(course.id) && "bg-indigo-50/30")}>
+                            <td className="px-6 py-4">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedCourseIds.includes(course.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCourseIds([...selectedCourseIds, course.id]);
+                                  } else {
+                                    setSelectedCourseIds(selectedCourseIds.filter(id => id !== course.id));
+                                  }
+                                }}
+                              />
+                            </td>
                             <td className="px-6 py-4">
                               <div className="font-bold">{course.title_en}</div>
                               <div className="text-xs text-gray-400">{course.title_ne}</div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="px-2 py-1 rounded-md bg-gray-100 text-[10px] font-bold uppercase">{course.category}</span>
+                              <span className={cn(
+                                "px-2 py-1 rounded-md text-[10px] font-bold uppercase",
+                                course.category === 'curriculum' ? "bg-blue-100 text-blue-600" :
+                                course.category === 'ai' ? "bg-purple-100 text-purple-600" :
+                                course.category === 'robotics' ? "bg-orange-100 text-orange-600" :
+                                "bg-emerald-100 text-emerald-600"
+                              )}>
+                                {course.category}
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-sm font-medium">{course.grade || 'N/A'}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex gap-3">
-                                <button onClick={() => { setEditCourse(course); setIsEditingCourse(true); }} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs uppercase">Edit</button>
-                                <button onClick={() => handleDeleteCourse(course.id)} className="text-red-600 hover:text-red-800 font-bold text-xs uppercase">Delete</button>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-3">
+                                <button onClick={() => { setEditCourse(course); setIsEditingCourse(true); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit className="w-4 h-4" /></button>
+                                <button onClick={() => handleDeleteCourse(course.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                               </div>
                             </td>
                           </tr>
