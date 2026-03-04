@@ -36,20 +36,47 @@ const MOCK_USER: User = {
 
 export default function App() {
   const [lang, setLang] = useState<'en' | 'ne'>('en');
-  const [view, setView] = useState<'dashboard' | 'course' | 'lesson' | 'certificates'>('dashboard');
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [completedLessons, setCompletedLessons] = useState<number[]>([]);
-  const [userCerts, setUserCerts] = useState<Certificate[]>([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'curriculum' | 'special'>('all');
+  const [view, setView] = useState<'dashboard' | 'course' | 'lesson' | 'certificates' | 'admin'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'overview' | 'courses' | 'users'>('overview');
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editCourse, setEditCourse] = useState<Partial<Course>>({});
 
   useEffect(() => {
     fetchCourses();
     fetchProgress();
     fetchCertificates();
-  }, []);
+    if (view === 'admin') fetchAdminData();
+  }, [view]);
+
+  const fetchAdminData = async () => {
+    const statsRes = await fetch('/api/admin/stats');
+    const statsData = await statsRes.json();
+    setAdminStats(statsData);
+  };
+
+  const handleSaveCourse = async () => {
+    const method = editCourse.id ? 'PUT' : 'POST';
+    const url = editCourse.id ? `/api/admin/courses/${editCourse.id}` : '/api/admin/courses';
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editCourse)
+    });
+    
+    setIsEditing(false);
+    setEditCourse({});
+    fetchCourses();
+    fetchAdminData();
+  };
+
+  const handleDeleteCourse = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this course?')) return;
+    await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+    fetchCourses();
+    fetchAdminData();
+  };
 
   const fetchCourses = async () => {
     const res = await fetch('/api/courses');
@@ -151,6 +178,12 @@ export default function App() {
                 className={cn("text-sm font-medium transition-colors", view === 'certificates' ? "text-indigo-600" : "text-gray-500 hover:text-indigo-600")}
               >
                 {t('Certificates', 'प्रमाणपत्रहरू')}
+              </button>
+              <button 
+                onClick={() => setView('admin')}
+                className={cn("text-sm font-medium transition-colors", view === 'admin' ? "text-indigo-600" : "text-gray-500 hover:text-indigo-600")}
+              >
+                {t('Admin', 'प्रशासक')}
               </button>
               <div className="h-6 w-px bg-gray-200" />
               <button 
@@ -419,6 +452,177 @@ export default function App() {
                   )}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {view === 'admin' && (
+            <motion.div 
+              key="admin-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-8"
+            >
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold">{t('Admin Control Panel', 'प्रशासक नियन्त्रण प्यानल')}</h1>
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                  {(['overview', 'courses', 'users'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setAdminTab(tab)}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                        adminTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500"
+                      )}
+                    >
+                      {tab.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {adminTab === 'overview' && adminStats && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {[
+                    { label: 'Total Courses', value: adminStats.courses, icon: BookOpen, color: 'text-blue-600' },
+                    { label: 'Total Lessons', value: adminStats.lessons, icon: LayoutDashboard, color: 'text-purple-600' },
+                    { label: 'Total Students', value: adminStats.users, icon: GraduationCap, color: 'text-emerald-600' },
+                    { label: 'Certificates Issued', value: adminStats.certificates, icon: Award, color: 'text-orange-600' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm">
+                      <stat.icon className={cn("w-8 h-8 mb-4", stat.color)} />
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">{stat.label}</p>
+                      <p className="text-3xl font-bold mt-1">{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {adminTab === 'courses' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold">{t('Manage Courses', 'पाठ्यक्रमहरू व्यवस्थापन गर्नुहोस्')}</h2>
+                    <button 
+                      onClick={() => { setEditCourse({ category: 'curriculum', grade: 1 }); setIsEditing(true); }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+                    >
+                      + {t('Add New Course', 'नयाँ पाठ्यक्रम थप्नुहोस्')}
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Course</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Category</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Grade</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {courses.map((course) => (
+                          <tr key={course.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-bold">{course.title_en}</div>
+                              <div className="text-xs text-gray-400">{course.title_ne}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-2 py-1 rounded-md bg-gray-100 text-[10px] font-bold uppercase">{course.category}</span>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium">{course.grade || 'N/A'}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex gap-3">
+                                <button onClick={() => { setEditCourse(course); setIsEditing(true); }} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs uppercase">Edit</button>
+                                <button onClick={() => handleDeleteCourse(course.id)} className="text-red-600 hover:text-red-800 font-bold text-xs uppercase">Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {isEditing && (
+                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl"
+                  >
+                    <div className="flex justify-between items-center mb-8">
+                      <h3 className="text-2xl font-bold">{editCourse.id ? 'Edit Course' : 'New Course'}</h3>
+                      <button onClick={() => setIsEditing(false)}><X /></button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400">Title (EN)</label>
+                        <input 
+                          className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                          value={editCourse.title_en || ''}
+                          onChange={e => setEditCourse({...editCourse, title_en: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400">Title (NE)</label>
+                        <input 
+                          className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                          value={editCourse.title_ne || ''}
+                          onChange={e => setEditCourse({...editCourse, title_ne: e.target.value})}
+                        />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400">Description (EN)</label>
+                        <textarea 
+                          className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none h-24"
+                          value={editCourse.description_en || ''}
+                          onChange={e => setEditCourse({...editCourse, description_en: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400">Category</label>
+                        <select 
+                          className="w-full p-3 rounded-xl border border-gray-200 outline-none"
+                          value={editCourse.category}
+                          onChange={e => setEditCourse({...editCourse, category: e.target.value as any})}
+                        >
+                          <option value="curriculum">Curriculum</option>
+                          <option value="ai">AI</option>
+                          <option value="robotics">Robotics</option>
+                          <option value="cybersecurity">Cyber Security</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400">Grade</label>
+                        <input 
+                          type="number"
+                          className="w-full p-3 rounded-xl border border-gray-200 outline-none"
+                          value={editCourse.grade || 0}
+                          onChange={e => setEditCourse({...editCourse, grade: parseInt(e.target.value)})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-8 flex gap-4">
+                      <button 
+                        onClick={handleSaveCourse}
+                        className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all"
+                      >
+                        Save Course
+                      </button>
+                      <button 
+                        onClick={() => setIsEditing(false)}
+                        className="px-8 py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
             </motion.div>
           )}
 

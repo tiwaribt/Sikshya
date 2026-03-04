@@ -177,14 +177,58 @@ async function startServer() {
     }
   });
 
-  app.get("/api/certificates/:user_id", (req, res) => {
-    const certs = db.prepare(`
-      SELECT c.*, co.title_en, co.title_ne 
-      FROM certificates c 
-      JOIN courses co ON c.course_id = co.id 
-      WHERE c.user_id = ?
-    `).all(req.params.user_id);
-    res.json(certs);
+  // Admin API Routes
+  app.get("/api/admin/stats", (req, res) => {
+    const stats = {
+      courses: (db.prepare("SELECT COUNT(*) as count FROM courses").get() as any).count,
+      lessons: (db.prepare("SELECT COUNT(*) as count FROM lessons").get() as any).count,
+      users: (db.prepare("SELECT COUNT(*) as count FROM users").get() as any).count,
+      certificates: (db.prepare("SELECT COUNT(*) as count FROM certificates").get() as any).count,
+    };
+    res.json(stats);
+  });
+
+  app.post("/api/admin/courses", (req, res) => {
+    const { title_en, title_ne, description_en, description_ne, grade, category, thumbnail } = req.body;
+    const result = db.prepare(`
+      INSERT INTO courses (title_en, title_ne, description_en, description_ne, grade, category, thumbnail)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(title_en, title_ne, description_en, description_ne, grade, category, thumbnail);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put("/api/admin/courses/:id", (req, res) => {
+    const { title_en, title_ne, description_en, description_ne, grade, category, thumbnail } = req.body;
+    db.prepare(`
+      UPDATE courses SET title_en = ?, title_ne = ?, description_en = ?, description_ne = ?, grade = ?, category = ?, thumbnail = ?
+      WHERE id = ?
+    `).run(title_en, title_ne, description_en, description_ne, grade, category, thumbnail, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/admin/courses/:id", (req, res) => {
+    db.prepare("DELETE FROM lessons WHERE course_id = ?").run(req.params.id);
+    db.prepare("DELETE FROM courses WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/admin/lessons", (req, res) => {
+    const { course_id, title_en, title_ne, content_en, content_ne, order_index } = req.body;
+    const result = db.prepare(`
+      INSERT INTO lessons (course_id, title_en, title_ne, content_en, content_ne, order_index)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(course_id, title_en, title_ne, content_en, content_ne, order_index);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.delete("/api/admin/lessons/:id", (req, res) => {
+    db.prepare("DELETE FROM lessons WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/users", (req, res) => {
+    const users = db.prepare("SELECT * FROM users").all();
+    res.json(users);
   });
 
   // Vite middleware for development
