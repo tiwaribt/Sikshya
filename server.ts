@@ -221,6 +221,15 @@ async function startServer() {
     res.json({ id: result.lastInsertRowid });
   });
 
+  app.put("/api/admin/lessons/:id", (req, res) => {
+    const { title_en, title_ne, content_en, content_ne, order_index } = req.body;
+    db.prepare(`
+      UPDATE lessons SET title_en = ?, title_ne = ?, content_en = ?, content_ne = ?, order_index = ?
+      WHERE id = ?
+    `).run(title_en, title_ne, content_en, content_ne, order_index, req.params.id);
+    res.json({ success: true });
+  });
+
   app.delete("/api/admin/lessons/:id", (req, res) => {
     db.prepare("DELETE FROM lessons WHERE id = ?").run(req.params.id);
     res.json({ success: true });
